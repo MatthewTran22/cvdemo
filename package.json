@@ -1,0 +1,30 @@
+{
+    "name": "mentraos-photo-taker-example-app",
+    "version": "1.0.0",
+    "type": "module",
+    "main": "index.js",
+    "scripts": {
+        "start": "bun src/index.ts",
+        "dev": "bun --hot src/index.ts",
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "test-webcam": "bun test_webcam_sender.ts",
+        "sse-server": "bun sse_webcam_sender.ts"
+    },
+    "author": "",
+    "license": "ISC",
+    "description": "Example app for taking photos with MentraOS",
+    "dependencies": {
+        "@mentra/sdk": "^2.1.2",
+        "canvas": "^3.2.0",
+        "ejs": "^3.1.10",
+        "express": "^5.1.0",
+        "ws": "^8.18.3"
+    },
+    "devDependencies": {
+        "@types/ejs": "^3.1.5",
+        "@types/express": "^5.0.3",
+        "@types/node": "^22.13.14",
+        "@types/ws": "^8.18.1",
+        "typescript": "^5.0.0"
+    }
+}
