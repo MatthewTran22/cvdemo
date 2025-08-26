@@ -1,3 +1,7 @@
 /venv/
 .env
 /node_modules/
+*.pt
+*.pth
+*.weights
+dog.mp4
