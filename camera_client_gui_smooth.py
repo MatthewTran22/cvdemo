@@ -11,7 +11,6 @@ import base64
 import time
 import cv2
 import numpy as np
-import os
 from typing import Optional, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -69,6 +68,7 @@ class SmoothGUICameraClient:
         
         # Stream configuration
         self.is_stream = "http://" in input_source.lower() or "rtmp://" in input_source.lower() or "rtmps://" in input_source.lower()
+        self.is_video_file = input_source.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv'))
         
         # WebSocket
         self.websocket = None
@@ -89,7 +89,7 @@ class SmoothGUICameraClient:
         logger.info(f"Initializing SmoothGUICameraClient - Input: {input_source}, Display FPS: {display_fps}, Detection FPS: {detection_fps}")
     
     def _initialize_camera(self) -> bool:
-        """Initialize camera capture or RTMP stream with high frame rate"""
+        """Initialize camera capture, video file, or RTMP stream with high frame rate"""
         try:
             if self.is_stream:
                 # For HTTP/RTMP streams, use the URL directly
@@ -99,6 +99,14 @@ class SmoothGUICameraClient:
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)  # Larger buffer for network streams
                 
                 logger.info(f"Attempting to connect to stream: {self.input_source}")
+            elif self.is_video_file:
+                # For video files, use the file path directly
+                self.cap = cv2.VideoCapture(self.input_source)
+                
+                # Video files need different buffer settings
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Small buffer for video files
+                
+                logger.info(f"Attempting to open video file: {self.input_source}")
             else:
                 # For camera devices, use as integer
                 camera_id = int(self.input_source)
@@ -127,7 +135,12 @@ class SmoothGUICameraClient:
                     logger.error("Failed to read from stream")
                     return False
             
-            source_type = "network stream" if self.is_stream else f"camera {self.input_source}"
+            if self.is_stream:
+                source_type = "network stream"
+            elif self.is_video_file:
+                source_type = f"video file ({self.input_source})"
+            else:
+                source_type = f"camera {self.input_source}"
             logger.success(f"{source_type} initialized successfully")
             return True
             
@@ -397,7 +410,12 @@ class SmoothGUICameraClient:
     
     async def start(self):
         """Start the camera client"""
-        source_type = "network stream" if self.is_stream else "camera"
+        if self.is_stream:
+            source_type = "network stream"
+        elif self.is_video_file:
+            source_type = "video file"
+        else:
+            source_type = "camera"
         print(f"Starting Smooth GUI client with {source_type} input...")
         print(f"Input source: {self.input_source}")
         print(f"Display FPS: {self.display_fps}")
@@ -466,8 +484,15 @@ class SmoothGUICameraClient:
 
 async def main():
     """Main function"""
+    import sys
+    
+    # Get input source from command line argument or use default
+    input_source = "dog.mp4"  # Default to MP4 file
+    if len(sys.argv) > 1:
+        input_source = sys.argv[1]
+    
     client = SmoothGUICameraClient(
-        input_source=os.getenv('STREAM_URL'),  # HTTP stream URL
+        input_source=input_source,
         websocket_url="ws://localhost:8765",
         display_fps=30,  # High display frame rate for smooth video
         detection_fps=10  # Lower detection frame rate for performance

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Demo Runner for MentraOS Animal Classification System
-Launches RTMP stream from dog.mp4, animal classifier server, and camera client GUI
+Launches animal classifier server and camera client GUI with direct MP4 input
 in separate terminals for easy testing
 """
 
@@ -19,29 +19,162 @@ class DemoRunner:
     def __init__(self):
         self.server_process = None
         self.client_process = None
-        self.rtmp_process = None  # FFmpeg process for RTMP streaming
         self.running = False
+        self.selected_video_file = None
         
     def print_banner(self):
         """Print the demo banner"""
         print("=" * 70)
-        print("🐾 MentraOS Animal Classification Demo (RTMP Stream)")
+        print("🐾 MentraOS Animal Classification Demo (Direct MP4 Input)")
         print("=" * 70)
         print("This will launch:")
-        print("  📹 HTTP Stream Server (dog.mp4 → http://localhost:8080/video.mjpg)")
         print("  📡 Animal Classifier Server (Python backend)")
-        print("  🎥 Camera Client GUI (HTTP stream input)")
+        print("  🎥 Camera Client GUI (Direct MP4 file input)")
         print("=" * 70)
         print("Press Ctrl+C to stop all components")
         print("=" * 70)
+    
+    def select_video_file(self):
+        """Allow user to select a video file"""
+        print("\n🎬 Video File Selection")
+        print("=" * 40)
+        
+        # Check if dog.mp4 exists as default
+        default_file = "dog.mp4"
+        if Path(default_file).exists():
+            print(f"📁 Default video file found: {default_file}")
+            print("\nOptions:")
+            print("  1. Use default file (dog.mp4)")
+            print("  2. Choose a different video file")
+            print("  3. Enter custom file path")
+            
+            while True:
+                choice = input("\nEnter your choice (1-3): ").strip()
+                
+                if choice == "1":
+                    self.selected_video_file = default_file
+                    print(f"✅ Using default file: {default_file}")
+                    return True
+                    
+                elif choice == "2":
+                    # Use file dialog if available
+                    if self._show_file_dialog():
+                        return True
+                    else:
+                        print("⚠️  File dialog not available, please use option 3")
+                        continue
+                        
+                elif choice == "3":
+                    if self._enter_custom_path():
+                        return True
+                    continue
+                    
+                else:
+                    print("❌ Invalid choice. Please enter 1, 2, or 3.")
+        else:
+            print(f"⚠️  Default file {default_file} not found")
+            print("\nOptions:")
+            print("  1. Choose a video file")
+            print("  2. Enter custom file path")
+            
+            while True:
+                choice = input("\nEnter your choice (1-2): ").strip()
+                
+                if choice == "1":
+                    if self._show_file_dialog():
+                        return True
+                    else:
+                        print("⚠️  File dialog not available, please use option 2")
+                        continue
+                        
+                elif choice == "2":
+                    if self._enter_custom_path():
+                        return True
+                    continue
+                    
+                else:
+                    print("❌ Invalid choice. Please enter 1 or 2.")
+    
+    def _show_file_dialog(self):
+        """Show file dialog for video selection"""
+        try:
+            # Try to use tkinter file dialog
+            import tkinter as tk
+            from tkinter import filedialog
+            
+            # Create a hidden root window
+            root = tk.Tk()
+            root.withdraw()  # Hide the main window
+            
+            # Show file dialog
+            file_path = filedialog.askopenfilename(
+                title="Select Video File",
+                filetypes=[
+                    ("Video files", "*.mp4 *.avi *.mov *.mkv *.wmv *.flv"),
+                    ("MP4 files", "*.mp4"),
+                    ("All files", "*.*")
+                ]
+            )
+            
+            root.destroy()
+            
+            if file_path:
+                if Path(file_path).exists():
+                    self.selected_video_file = file_path
+                    print(f"✅ Selected file: {file_path}")
+                    return True
+                else:
+                    print("❌ Selected file does not exist")
+                    return False
+            else:
+                print("❌ No file selected")
+                return False
+                
+        except ImportError:
+            print("⚠️  tkinter not available for file dialog")
+            return False
+        except Exception as e:
+            print(f"❌ Error showing file dialog: {e}")
+            return False
+    
+    def _enter_custom_path(self):
+        """Allow user to enter custom file path"""
+        while True:
+            file_path = input("\nEnter the path to your video file: ").strip()
+            
+            if not file_path:
+                print("❌ No path entered")
+                continue
+            
+            # Remove quotes if present
+            file_path = file_path.strip('"\'')
+            
+            if Path(file_path).exists():
+                # Check if it's a video file
+                video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
+                if any(file_path.lower().endswith(ext) for ext in video_extensions):
+                    self.selected_video_file = file_path
+                    print(f"✅ Video file found: {file_path}")
+                    return True
+                else:
+                    print("⚠️  File doesn't appear to be a video file")
+                    continue_choice = input("Use this file anyway? (y/n): ").strip().lower()
+                    if continue_choice in ['y', 'yes']:
+                        self.selected_video_file = file_path
+                        print(f"✅ Using file: {file_path}")
+                        return True
+            else:
+                print("❌ File not found")
+                retry = input("Try again? (y/n): ").strip().lower()
+                if retry not in ['y', 'yes']:
+                    return False
     
     def check_dependencies(self):
         """Check if required files exist"""
         required_files = [
             "animal_classifier.py",
             "camera_client_gui_smooth.py",
-            "requirements.txt",
-            "dog.mp4"
+            "requirements.txt"
         ]
         
         missing_files = []
@@ -56,22 +189,6 @@ class DemoRunner:
         print("✅ All required files found")
         return True
     
-    def check_ffmpeg(self):
-        """Check if FFmpeg is available"""
-        try:
-            result = subprocess.run(['ffmpeg', '-version'], 
-                                  capture_output=True, text=True, timeout=5)
-            if result.returncode == 0:
-                print("✅ FFmpeg is available")
-                return True
-            else:
-                print("❌ FFmpeg is not working properly")
-                return False
-        except FileNotFoundError:
-            print("❌ FFmpeg is not installed")
-            print("   Please install FFmpeg and ensure it's in your PATH")
-            return False
-    
     def check_virtual_environment(self):
         """Check if virtual environment is activated"""
         if not hasattr(sys, 'real_prefix') and not (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
@@ -83,51 +200,6 @@ class DemoRunner:
         
         print("✅ Virtual environment detected")
         return True
-    
-    def start_rtmp_stream(self):
-        """Start FFmpeg to create a local HTTP stream from dog.mp4"""
-        print("📹 Starting local HTTP stream from dog.mp4...")
-        
-        try:
-            # Create a simple HTTP server using FFmpeg
-            # This creates an MJPEG stream that OpenCV can read directly
-            cmd = [
-                'ffmpeg',
-                '-re',  # Read at native frame rate
-                '-stream_loop', '-1',  # Loop indefinitely
-                '-i', 'dog.mp4',  # Input file
-                '-c:v', 'mjpeg',  # MJPEG codec for easy streaming
-                '-f', 'mjpeg',  # MJPEG format
-                '-listen', '1',  # Enable listening mode
-                'http://localhost:8080/video.mjpg'  # HTTP stream URL
-            ]
-            
-            self.rtmp_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            
-            print(f"✅ HTTP stream started (PID: {self.rtmp_process.pid})")
-            print("   Source: dog.mp4")
-            print("   Destination: http://localhost:8080/video.mjpg")
-            
-            # Wait a moment for stream to start
-            time.sleep(3)
-            
-            # Check if process is still running
-            if self.rtmp_process.poll() is None:
-                print("✅ HTTP stream is running")
-                return True
-            else:
-                stdout, stderr = self.rtmp_process.communicate()
-                print(f"❌ HTTP stream failed to start: {stderr}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Failed to start HTTP stream: {e}")
-            return False
     
     def start_server(self):
         """Start the animal classifier server"""
@@ -157,16 +229,24 @@ class DemoRunner:
             return False
     
     def start_client(self):
-        """Start the camera client GUI"""
-        print("🎥 Starting Camera Client GUI (RTMP input)...")
+        """Start the camera client GUI with selected video file"""
+        print("🎥 Starting Camera Client GUI...")
         
         try:
-            # Start the client process
-            self.client_process = subprocess.Popen([
-                sys.executable, "camera_client_gui_smooth.py"
-            ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            # Start the client process with selected video file
+            cmd = [sys.executable, "camera_client_gui_smooth.py"]
+            if self.selected_video_file:
+                cmd.append(self.selected_video_file)
+            
+            self.client_process = subprocess.Popen(
+                cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.STDOUT, 
+                text=True
+            )
             
             print(f"✅ Client started (PID: {self.client_process.pid})")
+            print(f"📹 Using video file: {self.selected_video_file}")
             print("✅ Camera GUI should open shortly...")
             
             return True
@@ -177,13 +257,6 @@ class DemoRunner:
     
     def monitor_processes(self):
         """Monitor all processes and show their output"""
-        def monitor_rtmp():
-            if self.rtmp_process:
-                while self.rtmp_process.poll() is None:
-                    output = self.rtmp_process.stdout.readline()
-                    if output:
-                        print(f"[RTMP] {output.strip()}")
-        
         def monitor_server():
             if self.server_process:
                 while self.server_process.poll() is None:
@@ -199,15 +272,13 @@ class DemoRunner:
                         print(f"[CLIENT] {output.strip()}")
         
         # Start monitoring threads
-        rtmp_thread = threading.Thread(target=monitor_rtmp, daemon=True)
         server_thread = threading.Thread(target=monitor_server, daemon=True)
         client_thread = threading.Thread(target=monitor_client, daemon=True)
         
-        rtmp_thread.start()
         server_thread.start()
         client_thread.start()
         
-        return rtmp_thread, server_thread, client_thread
+        return server_thread, client_thread
     
     def stop_processes(self):
         """Stop all processes gracefully"""
@@ -231,19 +302,10 @@ class DemoRunner:
                 print("Force killing server...")
                 self.server_process.kill()
         
-        if self.rtmp_process:
-            print("Stopping RTMP stream...")
-            self.rtmp_process.terminate()
-            try:
-                self.rtmp_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                print("Force killing RTMP stream...")
-                self.rtmp_process.kill()
-        
         print("✅ All processes stopped")
     
     def run_demo(self):
-        """Run the complete demo with RTMP streaming"""
+        """Run the complete demo with selected video file"""
         self.print_banner()
         
         # Check prerequisites
@@ -253,24 +315,16 @@ class DemoRunner:
         if not self.check_virtual_environment():
             return False
         
-        if not self.check_ffmpeg():
+        # Select video file
+        if not self.select_video_file():
+            print("❌ No video file selected. Demo cannot continue.")
             return False
         
-        print("\n🎯 Starting Animal Classification Demo with HTTP streaming...")
+        print(f"\n🎯 Starting Animal Classification Demo with: {self.selected_video_file}")
         
-        # Start HTTP stream first
-        if not self.start_rtmp_stream():
-            print("❌ Failed to start HTTP stream. Demo cannot continue.")
-            return False
-        
-        # Wait for HTTP stream to be ready
-        print("⏳ Waiting for HTTP stream to initialize...")
-        time.sleep(2)
-        
-        # Start server
+        # Start server first
         if not self.start_server():
             print("❌ Failed to start server.")
-            self.stop_processes()
             return False
         
         # Wait for server to be ready
@@ -283,18 +337,17 @@ class DemoRunner:
             self.stop_processes()
             return False
         
-        print("\n🎉 Demo is running with HTTP streaming!")
-        print("📹 HTTP Stream: http://localhost:8080/video.mjpg")
+        print("\n🎉 Demo is running!")
         print("📡 Server: ws://localhost:8765")
         print("🎥 Client: Camera GUI window should be open")
-        print("🐕 Video source: dog.mp4 (looping)")
-        print("🔍 Animal detection should work with the video stream")
+        print(f"📹 Video source: {self.selected_video_file}")
+        print("🔍 Animal detection should work with the video file")
         print("⌨️  Press 'Q' in the camera window to quit")
         print("🛑 Press Ctrl+C here to stop all components")
         
         # Monitor processes
         self.running = True
-        rtmp_thread, server_thread, client_thread = self.monitor_processes()
+        server_thread, client_thread = self.monitor_processes()
         
         try:
             # Keep running until interrupted
@@ -302,10 +355,6 @@ class DemoRunner:
                 time.sleep(1)
                 
                 # Check if processes are still running
-                if self.rtmp_process and self.rtmp_process.poll() is not None:
-                    print("❌ RTMP stream process died unexpectedly")
-                    break
-                
                 if self.server_process and self.server_process.poll() is not None:
                     print("❌ Server process died unexpectedly")
                     break
